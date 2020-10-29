@@ -242,4 +242,71 @@ points(min.error.index, errors[min.error.index], col='red', cex=2, pch=20)
 
 # 11
 # part a
+set.seed(1)
+train = sample(1:nrow(Boston), as.integer(0.75*nrow(Boston)))
+test = (-train)
+reg.full = regsubsets(crim~., Boston[train, ], nvmax = length(names(Boston))-1)
+
+plot.errors = function(sub, data, target='Y', title='Training MSE', numf = 20 ){
+  errors = rep(NA, numf)
+  for (i in (1:numf)){
+    y_hat = predict(reg.full, data[sub, ], i)
+    y = data[sub, target]
+    errors[i] = mean((y - y_hat)^2)
+  }
+  # plot
+  plot(errors, type='l', main = title)
+  min.error = which.min(errors)
+  points(min.error, errors[min.error], col='red', cex=2, pch=20)
+  return(min.error)
+}
+numf = length(names(Boston))-1
+par(mfrow=c(1,1))
+min.error = plot.errors(test, Boston, 'crim', 'Boston Test MSE', numf)
+# all 14 features together give min MSE
+reg.summary = summary(reg.full)
+which.max(reg.summary$adjr2)
+which.min(reg.summary$cp)
+which.min(reg.summary$bic)
+
+# training on all 14 vars
+lm.fit = lm(crim~., Boston, subset = train)
+lm.pred = predict(lm.fit, Boston[test, ])
+lm.error = mean((y[test] - lm.pred)^2)
+# lasso
+X = model.matrix(crim~., data = Boston)[, -1]
+y = Boston$crim
+lasso.out = cv.glmnet(X[train, ], y[train], alpha=1)
+bestlam = lasso.out$lambda.min
+lasso.fit = glmnet(X[train, ], y[train], alpha = 1, lambda = bestlam)
+lasso.pred = predict(lasso.fit, X[test, ], exact = T)
+lasso.error = mean((y[test] - lasso.pred)^2)
+
+# ridge
+ridge.out = cv.glmnet(X[train, ], y[train], alpha=0)
+bestlam = ridge.out$lambda.min
+ridge.fit = glmnet(X[train, ], y[train], alpha=0, lambda = bestlam)
+ridge.pred = predict(ridge.fit, X[test, ], exact = T)
+ridge.error = mean((y[test]-ridge.pred)^2)
+
+# pcr
+pcr.out = pcr(crim~., data=Boston[train, ], scale=T, validation='CV')
+summary(pcr.out)
+validationplot(pcr.out, val.type = "MSEP")
+pcr.fit = pcr(crim~., data=Boston[train, ], scale=T, ncomp=14)
+pcr.pred = predict(pcr.fit, X[test, ])
+pcr.error = mean((y[test]-pcr.pred)^2)
+# part b
+all.errors = c(lm.error, lasso.error, ridge.error, pcr.error)
+names(all.errors) = c('Best Subset', 'Lasso', 'Ridge', 'PCR')
+
+barplot(all.errors)
+
+# all test MSE are roughly same, best subset gave the best performance
+
+# part c
+# in terms of performance best subset is better than all others, but it uses all the features. An observation is that
+# the best subset is only marginally better than Lasso (which is not using all the features), therefore we can reduce
+# the model complexity by choosing Lasso.
+
 
